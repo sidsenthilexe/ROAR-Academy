@@ -4,17 +4,26 @@
 ##
 ## (c) Copyright 2020-2024. Intelligent Racing Inc. Not permitted for commercial use
 
-## CartPole DQN with Rendering - Compatible with Gym 0.26.2
-## Shows the game being played during training
+## CartPole DQN with Rendering - Uses Gymnasium (the maintained successor to OpenAI Gym)
+## Shows the game being played during training.
+## The `import gymnasium as gym` alias is the migration path recommended by Gymnasium itself,
+## so the rest of the script reads the same as the original Gym version.
 
 import random
-import gym
+import gymnasium as gym
 import os
 import numpy as np
 from collections import deque
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
-from tensorflow.keras.optimizers import Adam
+# Use the legacy Adam optimizer (introduced in TF 2.11 as a stable fallback).
+# Reason: the new-style Adam builds its iteration counter lazily, which makes
+# Grappler's model_pruner pass log an "INVALID_ARGUMENT: Graph does not contain
+# terminal node Adam/AssignAddVariableOp" message on the first interleaved
+# predict()/fit() calls during DQN training. The legacy optimizer is identical
+# in math, has no such interaction, and is what Apple's tensorflow-metal docs
+# recommend on Apple Silicon.
+from tensorflow.keras.optimizers.legacy import Adam
 import time as time_module  # Rename to avoid conflict
 
 EPISODES = 100
@@ -72,18 +81,18 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    # Try to create environment with render mode
+    # Gymnasium uses render_mode as a constructor kwarg; the env then renders
+    # automatically during step() when render_mode='human'.
+    # Fall back to a non-rendering env on headless machines (no display, no SDL).
     try:
-        # For newer Gym versions
         env = gym.make('CartPole-v1', render_mode='human')
+        render_enabled = True
         print("Created environment with render_mode='human'")
-        use_old_render = False
-    except:
-        # For older Gym versions
+    except Exception as exc:
         env = gym.make('CartPole-v1')
-        print("Created environment without render_mode (will use env.render())")
-        use_old_render = True
-    
+        render_enabled = False
+        print(f"No display available ({exc.__class__.__name__}); running headless")
+
     state_size = env.observation_space.shape[0]
     action_size = env.action_space.n
     agent = DQNAgent(state_size, action_size)
@@ -97,68 +106,71 @@ if __name__ == "__main__":
     print("Starting DQN Training on CartPole")
     print("=" * 50)
 
+    # Every CartPole-v1 episode is exactly one game: env.reset() at the top puts
+    # the cart in a fresh randomized state, and the inner loop runs until either
+    # the pole falls (terminated), the cart leaves the track (terminated), or the
+    # 500-step cap is hit (truncated). Episodes alternate between two modes:
+    #   * "render episodes" — pure evaluation: act greedily from the current
+    #     network, no remember(), no replay(). The inner loop becomes
+    #     predict -> step -> sleep, which lets the pygame window repaint at the
+    #     environment's natural 50 Hz (no training stalls).
+    #   * other episodes      — full training with epsilon-greedy exploration
+    #     and experience replay, run as fast as the CPU allows (no rendering,
+    #     no sleep). This is the same train/eval split DeepMind's original
+    #     DQN paper uses to report scores.
     for e in range(EPISODES):
-        # Reset environment
-        reset_output = env.reset()
-        if isinstance(reset_output, tuple):
-            state, _ = reset_output
-        else:
-            state = reset_output
-            
+        # Gymnasium: reset() always returns (observation, info)
+        state, _ = env.reset()
         state = np.reshape(state, [1, state_size])
-        
-        # Determine if we should render this episode
+
         render_this_episode = (e % RENDER_EVERY == 0) or (e >= EPISODES - 5)
-        
+
         if render_this_episode:
-            print(f"\n🎮 Rendering Episode {e+1}/{EPISODES}")
-        
-        for step in range(500):  # Changed from 'time' to 'step' to avoid conflict
-            # Select action
-            action = agent.act(state)
-            
-            # Take action
-            step_output = env.step(action)
-            if len(step_output) == 5:
-                next_state, reward, terminated, truncated, info = step_output
-                done = terminated or truncated
+            print(f"\n🎮 Rendering Episode {e+1}/{EPISODES} (evaluation — no training)")
+
+        for step in range(500):  # CartPole-v1 caps episodes at 500 timesteps
+            if render_this_episode:
+                # Pure greedy policy: pick the action with the highest Q-value.
+                # No epsilon-exploration, no replay() — keeps the frame budget tiny.
+                q_values = agent.model.predict(state, verbose=0)
+                action = int(np.argmax(q_values[0]))
             else:
-                next_state, reward, done, info = step_output
-            
-            # Render if it's a display episode
-            if render_this_episode and use_old_render:
-                try:
-                    env.render()
-                    time_module.sleep(0.02)  # Slow down for visibility
-                except:
-                    pass
-            elif render_this_episode and not use_old_render:
-                # For new API with render_mode='human', rendering is automatic
-                time_module.sleep(0.02)  # Just slow down
-            
-            # Modify reward
-            reward = reward if not done else -10
-            
-            # Remember experience
+                action = agent.act(state)  # epsilon-greedy
+
+            # Gymnasium: step() always returns (obs, reward, terminated, truncated, info)
+            next_state, reward, terminated, truncated, _info = env.step(action)
+            done = terminated or truncated
+
+            # With render_mode='human' the window updates automatically inside step();
+            # the sleep paces the loop at the env's physics rate (~50 Hz).
+            if render_this_episode and render_enabled:
+                time_module.sleep(0.02)
+
+            # Shape the reward only when we're actually learning
+            reward_shaped = reward if not done else -10
             next_state = np.reshape(next_state, [1, state_size])
-            agent.remember(state, action, reward, next_state, done)
-            
-            # Update state
+
+            if not render_this_episode:
+                # Training-only: build replay buffer and update Q-network
+                agent.remember(state, action, reward_shaped, next_state, done)
+
             state = next_state
-            
+
             if done:
                 scores.append(step + 1)
-                print(f"Episode: {e+1}/{EPISODES}, Score: {step+1}, ε: {agent.epsilon:.3f}")
-                
+                label = "eval " if render_this_episode else "train"
+                print(f"Episode: {e+1}/{EPISODES} ({label}), Score: {step+1}, ε: {agent.epsilon:.3f}")
+
                 # Print progress bar
                 if (e + 1) % 10 == 0:
                     avg_score = np.mean(scores[-10:])
                     print(f"📊 Last 10 episodes average: {avg_score:.1f}")
-                    
+
                 break
-            
-            # Train the agent
-            if len(agent.memory) > batch_size:
+
+            # Train the agent only on non-render episodes so render episodes
+            # stay smooth (no NN training between frames).
+            if not render_this_episode and len(agent.memory) > batch_size:
                 agent.replay(batch_size)
         
         # Save model periodically

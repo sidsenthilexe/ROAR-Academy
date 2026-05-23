@@ -26,7 +26,7 @@ Once Python 3.11 is installed, create a dedicated conda environment for the cour
     python -m pip install --upgrade pip
     python -m pip install -r requirements.txt
 ~~~
-The `requirements.txt` file pins NumPy, matplotlib, TensorFlow 2.12 (Keras 2 bundled), `gym==0.26.2`, `pyglet==1.5.27`, `pygame==2.6.1`, and the Jupyter notebook tooling to versions that have been tested together for this course. If you prefer to install modules one at a time, the sections below list the individual `pip install` commands.
+The `requirements.txt` file pins NumPy (1.x, up to 1.26), matplotlib, TensorFlow 2.15 (Keras 2 bundled), Gymnasium, pygame, and the Jupyter notebook tooling to versions that have been tested together for this course. If you prefer to install modules one at a time, the sections below list the individual `pip install` commands.
 
 For the basic Python and NumPy exercises (Part One and the early Part Two notebooks), the minimum set is:
 ~~~
@@ -39,10 +39,10 @@ For the DNN portion, we use tensorflow 2 and keras. The installation shall refer
 
 **If your PC comes with supported NVidia GPU for accelerating DNN code, please follow carefully the setup of GPU support for Linux and Windows. For MacOS, please read the instruction at the end**
 
-After you have setup your system for an installation on either CPU or GPU, run the following pip script to install tensorflow 2.12
+After you have setup your system for an installation on either CPU or GPU, run the following pip script to install tensorflow 2.15. TensorFlow 2.15 is the last release that ships Keras 2 by default, which is the Keras API used throughout the course material.
 ~~~
     python -m pip install --upgrade pip
-    python -m pip install tensorflow==2.12
+    python -m pip install "tensorflow==2.15.*"
 ~~~
 
 Finally, you may verify tensorflow has been properly set up by running the following test
@@ -57,15 +57,11 @@ If you have install tensorflow with GPU support, you may verify by running the f
 
 ## Tensorflow Installation with Metal accelerated backend for MacOS
 
-Apple has released a Metal-accelerated tensorflow backend to utilize the GPU on MacOS. Please visit Apple website to install tensorflow 2.12: <https://developer.apple.com/metal/tensorflow-plugin/>
-
-## Installation of Reinforcement Learning Modules
-
-This course will require installation of the following reinforcement learning modules:
-
-* gym simulator: <https://github.com/openai/gym>
+Apple ships a Metal GPU plugin that lets TensorFlow use the GPU on Apple Silicon Macs (M1/M2/M3/M4). With TensorFlow 2.15 the regular `tensorflow` package on PyPI already ships native arm64 macOS wheels, so the install reduces to two commands — first TensorFlow itself, then the Metal plugin:
 ~~~
-python -m pip install gym==0.26.2
-python -m pip install pyglet==1.5.27
-python -m pip install pygame==2.6.1
+    python -m pip install "tensorflow==2.15.*"
+    python -m pip install tensorflow-metal
 ~~~
+This is the same two-line install Apple recommends at <https://developer.apple.com/metal/tensorflow-plugin/>. The Metal plugin only ships arm64 wheels, so it is skipped automatically on Intel Macs and on Linux/Windows.
+
+If you run `pip install -r requirements.txt` the marker `sys_platform == "darwin" and platform_machine == "arm64"` already takes care of installing `tensorflow-metal` for you on Apple Silicon — no extra step needed.

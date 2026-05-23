@@ -14,24 +14,41 @@
 # https://developer.apple.com/metal/tensorflow-plugin/
 
 # ---- core scientific stack ----
-numpy>=1.22,<1.24          # TensorFlow 2.12 requires NumPy 1.22.x or 1.23.x
-matplotlib>=3.7,<3.9
-scipy>=1.10
+# TensorFlow 2.15 supports NumPy 1.23 through 1.26 (i.e. anything below 2.0).
+numpy>=1.23,<2.0
+matplotlib>=3.7,<3.10
+scipy>=1.11
 pandas>=2.0
-pillow>=9.5
-opencv-python>=4.8,<4.11
+pillow>=10.0
+opencv-python>=4.8
 
-# ---- deep learning (Keras 2 API, bundled inside TensorFlow 2.12) ----
-# Do NOT also `pip install keras` — TF 2.12 already ships Keras 2.12 inside it.
-# Both `import keras` and `from tensorflow import keras` resolve to that copy.
-tensorflow==2.12.* ; sys_platform != "darwin" or platform_machine != "arm64"
-tensorflow-macos==2.12.* ; sys_platform == "darwin" and platform_machine == "arm64"
-tensorflow-metal==0.8.0  ; sys_platform == "darwin" and platform_machine == "arm64"
+# ---- deep learning (Keras 2 API, bundled inside TensorFlow 2.15) ----
+# TF 2.15 is the last TensorFlow release that ships Keras 2 by default.
+# Do NOT also `pip install keras` — TF 2.15 already installs Keras 2.15 as a
+# dependency, and `import keras` and `from tensorflow import keras` both
+# resolve to that copy. (TF 2.16+ would switch to Keras 3, which has subtle
+# API differences this course is not yet ported to.)
+#
+# TF 2.15 publishes native macOS arm64 wheels under the regular `tensorflow`
+# name, so a single line works on Linux, Windows, Intel Mac, and Apple Silicon.
+# On Apple Silicon we additionally install Apple's Metal GPU plugin.
+# (tensorflow-metal wheels are arm64-only; the marker keeps Intel Macs clean.)
+tensorflow==2.15.*
+tensorflow-metal==1.1.0 ; sys_platform == "darwin" and platform_machine == "arm64"
 
-# ---- reinforcement learning (classic Gym API used by samples/cartpole_dqn.py) ----
-gym==0.26.2
-pyglet==1.5.27
-pygame==2.6.1
+# ---- reinforcement learning ----
+# Gymnasium is the maintained successor to OpenAI Gym. The samples import it via
+# `import gymnasium as gym`, so all `gym.make('CartPole-v1')` calls keep working
+# unchanged. Pygame is the rendering backend Gymnasium uses for CartPole.
+gymnasium>=0.29,<2.0
+pygame>=2.5
+
+# Stable-Baselines3 and highway-env power the parking_sac_her.py sample (SAC + HER
+# on the highway-env parking environment). SB3 is PyTorch-based, so `torch` is
+# pulled in as a transitive dependency — on Apple Silicon and on Linux without
+# CUDA, the default PyPI torch wheel installs a CPU build, no extra setup needed.
+stable-baselines3>=2.3,<3.0
+highway-env>=1.10,<2.0
 
 # ---- notebook tooling for the .ipynb lessons in Part One / Part Two ----
 jupyter>=1.0
