@@ -8,9 +8,8 @@
 #     python -m pip install --upgrade pip
 #     python -m pip install -r requirements.txt
 #
-# macOS Apple Silicon (M1/M2/M3/M4) users: the `tensorflow-macos` /
-# `tensorflow-metal` lines below replace `tensorflow` automatically when pip
-# evaluates the environment markers. See:
+# macOS: see README.md "For macOS" for minimum OS version and Xcode setup.
+# On Apple Silicon, `tensorflow-metal` is added automatically via the marker below.
 # https://developer.apple.com/metal/tensorflow-plugin/
 
 # ---- core scientific stack ----
