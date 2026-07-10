@@ -132,3 +132,5 @@ Part Two/samples/lenna-mod.jpg
 Part Two/samples/nasdaqetfs.txt
 Part Two/samples/md5
 *.zip
+
+.vscode/
